@@ -1,0 +1,10 @@
+{
+  "question": "Review this diff against SQLAlchemy's SQLite dialect and test-suite conventions for the JSON.NULL comparison task.",
+  "criteria": [
+    "The diff stays on-ticket: it fixes SQLite JSON index/path comparisons against JSON.NULL without unrelated refactors or drive-by edits.",
+    "The implementation uses SQLAlchemy compiler/type/operator conventions rather than fragile application-level string hacks.",
+    "The change preserves existing JSON extraction behavior, JSON persistence semantics, none_as_null behavior, scalar casters, and non-SQLite dialect behavior.",
+    "The submitted tests cover explicit JSON null, missing paths, SQL NULL containers, string \"null\", nested object paths, array-index paths, equality, and inequality."
+  ]
+}
+

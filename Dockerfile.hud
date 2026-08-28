@@ -1,0 +1,69 @@
+# SQLite JSON.NULL comparison task on SQLAlchemy.
+#
+# Substrate: SQLAlchemy at the pinned base SHA, with repo history vaulted at
+# task setup by coding/repo.py. The prompt and task runtime are visible, while
+# grader material is staged under /hud in the container.
+
+FROM python:3.12-bookworm
+
+ARG REPO_URL=https://github.com/sqlalchemy/sqlalchemy.git
+ARG BASE_SHA=5462cec4c5b97ae9c1cefc0a0e022d49273b32e0
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git curl ca-certificates \
+        util-linux \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv /opt/hudvenv \
+    && /opt/hudvenv/bin/pip install --no-cache-dir "hud==0.6.13" "pytest>=8.0.0"
+ENV PATH="/opt/hudvenv/bin:${PATH}"
+
+# Substrate repo at the pinned base commit. History is truncated here and
+# additionally vaulted at task setup (coding/repo.py), so the agent gets a
+# fresh single-commit repo with working git and no refs to mine.
+RUN mkdir -p /workspace \
+    && git init -q /workspace/repo \
+    && cd /workspace/repo \
+    && git remote add origin ${REPO_URL} \
+    && git fetch --depth 1 origin ${BASE_SHA} \
+    && git checkout -q FETCH_HEAD \
+    && git checkout -q -b main \
+    && git config --system user.email "dev@localhost" \
+    && git config --system user.name "dev" \
+    # the repo gets chowned to the agent uid below; root (build steps and the
+    # grading process) must still be allowed to run git in it
+    && git config --system --add safe.directory /workspace/repo
+
+# The hidden grader imports SQLAlchemy from the working tree via PYTHONPATH.
+# pytest is installed for agents who run focused regression tests themselves.
+RUN chown -R 1000:1000 /workspace/repo
+
+# Hidden grader material is staged under /hud. The gold answer diff is kept
+# outside this repository and supplied separately for validation/submission.
+COPY task/grader/ /hud/grader/
+RUN mkdir -p /hud/grader/pristine /hud/vault /hud/logs \
+    && cp -r /workspace/repo/lib /hud/grader/pristine/lib \
+    && cp -r /workspace/repo/test/dialect/sqlite /hud/grader/pristine/sqlite-tests \
+    && git -C /workspace/repo rev-parse HEAD > /hud/grader/base_sha \
+    && cp -a /workspace/repo /hud/grader/runner \
+    && rm -rf /hud/grader/runner/.git /hud/grader/runner/.hud \
+    # cp -a preserved the agent uid from the chowned repo; the runner is
+    # grader-owned and must be root's
+    && chown -R root:root /hud \
+    && chmod -R 700 /hud
+
+# Template runtime layout
+ENV REPO_DIR=/workspace/repo \
+    VAULT_DIR=/hud/vault \
+    GRADING_LOGS_DIR=/hud/logs \
+    GRADER_DIR=/hud/grader
+
+WORKDIR /app
+COPY coding/ /app/coding/
+COPY env.py tasks.py /app/
+COPY task/prompt.md /app/task/prompt.md
+RUN chmod 600 /app/tasks.py
+
+# Serve tasks.py: it imports the template's Environment (env.py) untouched and
+# registers the rubric-task flavor + this task on top of it.
+CMD ["hud", "serve", "tasks.py", "--host", "0.0.0.0"]

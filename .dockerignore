@@ -1,0 +1,10 @@
+# Builds run from the repo root; the context is only what the images COPY,
+# plus the Dockerfile itself (remote builders read it from the context).
+*
+!Dockerfile.hud
+!env.py
+!tasks.py
+!task
+!coding
+!instances
+**/__pycache__
