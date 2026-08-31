@@ -26,14 +26,15 @@ PROMPT = (Path(__file__).parent / "task" / "prompt.md").read_text()
 GRADER = "/hud/grader/run_grading.sh"
 GOLD_DIFF = Path(os.environ.get("GOLD_DIFF", "/hud/gold.diff"))
 BASE_REF = "5462cec4c5b97ae9c1cefc0a0e022d49273b32e0"
+BLOCKER_CAP = 0.60
 
 GRADERS = [
-    ("json_null_equality", 0.25, True, "bash", 300),
-    ("json_null_inequality", 0.15, True, "bash", 300),
-    ("nested_path_support", 0.15, True, "bash", 300),
+    ("json_null_equality", 0.20, True, "bash", 300),
+    ("json_null_inequality", 0.10, True, "bash", 300),
+    ("nested_path_support", 0.10, True, "bash", 300),
     ("regression_backcompat", 0.15, True, "bash", 300),
-    ("test_quality", 0.10, False, "bash", 300),
-    ("maintainer_review", 0.20, True, "judge", 300),
+    ("test_quality", 0.15, False, "bash", 300),
+    ("maintainer_review", 0.30, False, "judge", 300),
 ]
 
 _JUDGE_FILE = "maintainer_review.judge.json"
@@ -115,7 +116,7 @@ async def _grade(validate_mode: str | None) -> EvaluationResult:
         if blocker and next(s.value for s in subscores if s.name == name) < 1.0
     )
     if failed:
-        reward = min(result.reward, 0.2 + 0.5 * result.reward)
+        reward = min(result.reward, BLOCKER_CAP)
         return EvaluationResult(
             reward=reward,
             subscores=result.subscores,
@@ -126,7 +127,7 @@ async def _grade(validate_mode: str | None) -> EvaluationResult:
             },
             content=(
                 f"Blocker criteria failed ({', '.join(failed)}); "
-                f"reward scaled down to {reward:.3f}."
+                f"reward capped at {reward:.3f}."
             ),
         )
 
