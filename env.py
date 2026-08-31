@@ -80,7 +80,7 @@ INSTANCE_DIR = Path(os.environ.get("INSTANCE_DIR", "/hud/instance"))
 AGENT_UID = 1000
 AGENT_HOME = Path("/tmp/agent-home")  # noqa: S108 - container-local, created at setup
 
-env = Environment(name="swe-task-example")
+env = Environment(name="sqlalchemy-json-null")
 
 
 # shell_uid is the privilege wall: the env process (root, in images) keeps the
