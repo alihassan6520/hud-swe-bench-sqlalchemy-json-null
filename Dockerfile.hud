@@ -41,9 +41,10 @@ RUN mkdir -p /workspace \
 # pytest is installed for agents who run focused regression tests themselves.
 RUN chown -R 1000:1000 /workspace/repo
 
-# Hidden grader material is staged under /hud. The gold answer diff is kept
-# outside this repository and supplied separately for validation/submission.
+# Hidden grader material is staged under /hud, including the sealed gold
+# answer diff used only for golden validation.
 COPY task/grader/ /hud/grader/
+COPY task/gold.diff /hud/gold.diff
 RUN mkdir -p /hud/grader/pristine /hud/vault /hud/logs \
     && cp -r /workspace/repo/lib /hud/grader/pristine/lib \
     && cp -r /workspace/repo/test/dialect/sqlite /hud/grader/pristine/sqlite-tests \

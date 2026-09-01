@@ -1,0 +1,132 @@
+diff --git a/lib/sqlalchemy/dialects/sqlite/base.py b/lib/sqlalchemy/dialects/sqlite/base.py
+index b0874da..9f81394 100644
+--- a/lib/sqlalchemy/dialects/sqlite/base.py
++++ b/lib/sqlalchemy/dialects/sqlite/base.py
+@@ -1057,6 +1057,7 @@ from ...sql import coercions
+ from ...sql import compiler
+ from ...sql import ddl as sa_ddl
+ from ...sql import elements
++from ...sql import operators
+ from ...sql import roles
+ from ...sql import schema
+ from ...types import BLOB  # noqa
+@@ -1497,6 +1498,41 @@ class SQLiteCompiler(compiler.SQLCompiler):
+         },
+     )
+ 
++    def _render_json_null_comparison(self, binary, operator, **kw):
++        left = binary.left
++        right = binary.right
++
++        if (
++            operator not in (operators.eq, operators.ne)
++            or not isinstance(left, elements.BinaryExpression)
++            or left.operator
++            not in (operators.json_getitem_op, operators.json_path_getitem_op)
++            or not isinstance(right, elements.BindParameter)
++            or right.value is not sqltypes.JSON.NULL
++        ):
++            return None
++
++        json_type = "JSON_TYPE(%s, %s)" % (
++            self.process(left.left, **kw),
++            self.process(left.right, **kw),
++        )
++
++        if operator is operators.eq:
++            return "%s = 'null'" % json_type
++        else:
++            return "%s IS NOT 'null'" % json_type
++
++    def visit_binary(self, binary, operator=None, **kw):
++        rendered = self._render_json_null_comparison(
++            binary, operator or binary.operator, **kw
++        )
++        if rendered is not None:
++            return rendered
++        if operator is None:
++            return super().visit_binary(binary, **kw)
++        else:
++            return super().visit_binary(binary, operator, **kw)
++
+     def visit_truediv_binary(self, binary, operator, **kw):
+         return (
+             self.process(binary.left, **kw)
+diff --git a/test/dialect/sqlite/test_types.py b/test/dialect/sqlite/test_types.py
+index 736541d..d6b618f 100644
+--- a/test/dialect/sqlite/test_types.py
++++ b/test/dialect/sqlite/test_types.py
+@@ -288,6 +288,73 @@ class JSONTest(fixtures.TestBase):
+             connection.scalar(select(sqlite_json.c.foo["json"])), value["json"]
+         )
+ 
++    def test_compare_json_null_distinguishes_missing_path(
++        self, connection, metadata
++    ):
++        sqlite_json = Table(
++            "json_test",
++            metadata,
++            Column("id", Integer, primary_key=True),
++            Column("foo", sqlite.JSON),
++        )
++
++        metadata.create_all(connection)
++
++        connection.execute(
++            sqlite_json.insert(),
++            [
++                {
++                    "id": 1,
++                    "foo": {
++                        "json": None,
++                        "nested": {"value": None},
++                        "records": [{"value": None}],
++                    },
++                },
++                {
++                    "id": 2,
++                    "foo": {
++                        "nested": {},
++                        "records": [{}],
++                    },
++                },
++                {"id": 3, "foo": None},
++                {
++                    "id": 4,
++                    "foo": {
++                        "json": "null",
++                        "nested": {"value": "null"},
++                        "records": [{"value": "null"}],
++                    },
++                },
++            ],
++        )
++
++        def matching_ids(expr):
++            return connection.scalars(
++                select(sqlite_json.c.id).where(expr).order_by(sqlite_json.c.id)
++            ).all()
++
++        eq_(matching_ids(sqlite_json.c.foo["json"] == sqltypes.JSON.NULL), [1])
++        eq_(
++            matching_ids(
++                sqlite_json.c.foo[("nested", "value")] == sqltypes.JSON.NULL
++            ),
++            [1],
++        )
++        eq_(
++            matching_ids(
++                sqlite_json.c.foo[("records", 0, "value")]
++                == sqltypes.JSON.NULL
++            ),
++            [1],
++        )
++        eq_(matching_ids(sqlite_json.c.foo["missing"] == sqltypes.JSON.NULL), [])
++        eq_(
++            matching_ids(sqlite_json.c.foo["json"] != sqltypes.JSON.NULL),
++            [2, 3, 4],
++        )
++
+     def test_serializer_args(self, metadata):
+         sqlite_json = Table("json_test", metadata, Column("foo", sqlite.JSON))
+         data_element = {"foo": "bar"}
