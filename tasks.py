@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
 from hud.graders import BashGrader
 from hud.graders import EvaluationResult
+from hud.graders import LLMJudgeGrader
 from hud.graders import SubScore
 from hud.graders import combine
 
@@ -27,13 +29,19 @@ BASE_REF = "5462cec4c5b97ae9c1cefc0a0e022d49273b32e0"
 BLOCKER_CAP = 0.60
 
 GRADERS = [
-    ("json_null_equality", 0.20, True, "bash", 300),
-    ("json_null_inequality", 0.10, True, "bash", 300),
-    ("nested_path_support", 0.10, True, "bash", 300),
-    ("regression_backcompat", 0.15, True, "bash", 300),
+    ("json_null_equality", 0.15, True, "bash", 300),
+    ("json_null_inequality", 0.08, True, "bash", 300),
+    ("nested_path_support", 0.08, True, "bash", 300),
+    ("regression_backcompat", 0.09, True, "bash", 300),
     ("test_quality", 0.15, False, "bash", 300),
-    ("maintainer_review", 0.30, False, "bash", 300),
+    ("maintainer_review", 0.45, False, "judge", 300),
 ]
+
+_JUDGE_FILE = "maintainer_review.judge.json"
+_GRADER_SRC = Path(os.environ.get("GRADER_DIR", "/hud/grader"))
+if not (_GRADER_SRC / _JUDGE_FILE).is_file():
+    _GRADER_SRC = Path(__file__).parent / "task" / "grader"
+JUDGE = json.loads((_GRADER_SRC / _JUDGE_FILE).read_text())
 
 
 def _slim_metadata(subscores: list[SubScore]) -> None:
@@ -45,6 +53,25 @@ def _slim_metadata(subscores: list[SubScore]) -> None:
             value = meta.get(key)
             if isinstance(value, str) and len(value) > 2500:
                 meta[key] = "..." + value[-2500:]
+
+
+async def _judge_diff(name: str, weight: float, diff: str) -> SubScore:
+    try:
+        return await LLMJudgeGrader.grade(
+            weight,
+            name=name,
+            answer=diff[:100_000],
+            criteria=list(JUDGE["criteria"]),
+            question=JUDGE["question"],
+        )
+    except Exception as exc:
+        return SubScore(
+            name=name,
+            weight=weight,
+            value=0.0,
+            metadata={"judge_error": f"{type(exc).__name__}: {exc}"[:300]},
+        )
+
 
 async def _grade(validate_mode: str | None) -> EvaluationResult:
     setup_commit = await repo_lib.restore_history(REPO_DIR, VAULT_DIR)
@@ -67,15 +94,18 @@ async def _grade(validate_mode: str | None) -> EvaluationResult:
 
     subscores: list[SubScore] = []
     for name, weight, _blocker, kind, timeout in GRADERS:
-        subscores.append(
-            await BashGrader.grade(
-                weight,
-                name=name,
-                command=f"bash {GRADER} {name}",
-                cwd=str(REPO_DIR),
-                timeout_seconds=timeout,
+        if kind == "bash":
+            subscores.append(
+                await BashGrader.grade(
+                    weight,
+                    name=name,
+                    command=f"bash {GRADER} {name}",
+                    cwd=str(REPO_DIR),
+                    timeout_seconds=timeout,
+                )
             )
-        )
+        else:
+            subscores.append(await _judge_diff(name, weight, diff))
 
     _slim_metadata(subscores)
     result = await combine(*subscores)
