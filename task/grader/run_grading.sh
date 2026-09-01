@@ -49,6 +49,14 @@ criterion_nested_path_support() {
   run_python_test nested_path_support.py
 }
 
+criterion_membership_support() {
+  run_python_test membership_support.py
+}
+
+criterion_reverse_operand_support() {
+  run_python_test reverse_operand_support.py
+}
+
 criterion_regression_backcompat() {
   run_python_test regression_backcompat.py
 }
@@ -61,7 +69,7 @@ criterion_maintainer_review() {
   run_python_test maintainer_review.py
 }
 
-CRITERIA="json_null_equality json_null_inequality nested_path_support regression_backcompat test_quality maintainer_review"
+CRITERIA="json_null_equality json_null_inequality nested_path_support membership_support reverse_operand_support regression_backcompat test_quality maintainer_review"
 
 name="${1:-}"
 case " $CRITERIA " in

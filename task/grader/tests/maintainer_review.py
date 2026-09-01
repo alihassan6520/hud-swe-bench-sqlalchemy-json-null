@@ -29,4 +29,14 @@ assert not unexpected, f"unexpected off-ticket files changed: {unexpected}"
 
 assert "JSON.NULL" in diff, "expected the patch to address JSON.NULL"
 assert "json" in diff.lower(), "expected JSON-specific implementation or tests"
+assert (
+    "in_op" in diff
+    or ".in_(" in diff
+    or ".not_in(" in diff
+    or ".notin(" in diff
+), "expected JSON.NULL membership handling"
+assert (
+    "operators.eq" in diff
+    or "JSON.NULL ==" in diff
+), "expected symmetric equality handling"
 assert "TODO" not in diff and "FIXME" not in diff, "patch leaves TODO/FIXME markers"

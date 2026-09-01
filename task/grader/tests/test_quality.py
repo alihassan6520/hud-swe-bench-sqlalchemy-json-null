@@ -23,3 +23,8 @@ assert any(
     )
 ), "expected absent-path regression coverage"
 assert "!=" in diff, "expected inequality regression coverage"
+assert "==" in diff, "expected equality regression coverage"
+assert ".in_(" in diff or ".in_op(" in diff, "expected membership coverage"
+assert ".not_in(" in diff or ".notin(" in diff, "expected inverse membership coverage"
+assert "JSON.NULL ==" in diff, "expected reversed equality coverage"
+assert "JSON.NULL !=" in diff, "expected reversed inequality coverage"

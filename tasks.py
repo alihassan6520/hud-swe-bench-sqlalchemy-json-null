@@ -28,12 +28,14 @@ BASE_REF = "5462cec4c5b97ae9c1cefc0a0e022d49273b32e0"
 BLOCKER_CAP = 0.60
 
 GRADERS = [
-    ("json_null_equality", 0.15, True, "bash", 300),
-    ("json_null_inequality", 0.08, True, "bash", 300),
-    ("nested_path_support", 0.08, True, "bash", 300),
-    ("regression_backcompat", 0.09, True, "bash", 300),
+    ("json_null_equality", 0.10, True, "bash", 300),
+    ("json_null_inequality", 0.10, True, "bash", 300),
+    ("nested_path_support", 0.10, True, "bash", 300),
+    ("membership_support", 0.13, True, "bash", 300),
+    ("reverse_operand_support", 0.12, True, "bash", 300),
+    ("regression_backcompat", 0.05, False, "bash", 300),
     ("test_quality", 0.15, False, "bash", 300),
-    ("maintainer_review", 0.45, False, "bash", 300),
+    ("maintainer_review", 0.25, False, "bash", 300),
 ]
 
 _GRADER_SRC = Path(os.environ.get("GRADER_DIR", "/hud/grader"))

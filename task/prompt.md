@@ -1,31 +1,20 @@
-## SQLite JSON.NULL comparison semantics
+## SQLite JSON.NULL path predicates
 
-SQLAlchemy's SQLite JSON implementation currently treats some JSON path comparisons against `JSON.NULL` too broadly.
+A customer found that SQLite JSON filters using SQLAlchemy's `JSON.NULL`
+sentinel are not precise enough when the filter targets a JSON path.
 
-Please update the SQLite dialect so expressions like:
+Update the SQLite dialect so JSON path predicates treat an explicit JSON null
+as a different value from an absent path, a SQL NULL JSON container, and the
+JSON string `"null"`.
 
-```python
-table.c.payload["key"] == JSON.NULL
-table.c.payload[("nested", 0, "key")] == JSON.NULL
-```
+The behavior should be consistent for direct key paths, tuple JSON paths,
+normal and reversed equality predicates, and membership predicates that test a
+path against only `JSON.NULL`. Inverse predicates should exclude explicit JSON
+null values while allowing non-null values, absent paths, and SQL NULL
+containers.
 
-match only rows where the addressed JSON path exists and the value at that path is explicit JSON null.
-
-They must not match:
-
-- a missing object key or array index
-- a SQL NULL JSON column/container
-- a JSON string value such as `"null"`
-
-The inverse comparison should also behave consistently:
-
-```python
-table.c.payload["key"] != JSON.NULL
-```
-
-should exclude explicit JSON null values, but should allow non-null values, missing paths, and SQL NULL containers.
-
-Keep this narrowly scoped to SQLite JSON index/path comparison behavior. Do not change JSON persistence semantics, `none_as_null`, normal JSON extraction results, scalar casters, or non-SQLite dialect behavior.
+Keep the change limited to SQLite JSON index/path predicate compilation. Do
+not change JSON persistence semantics, `none_as_null`, regular JSON extraction
+results, scalar casters, or other dialects.
 
 Add focused regression coverage in the existing SQLite JSON tests.
-

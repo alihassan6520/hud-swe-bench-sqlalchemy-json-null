@@ -1,5 +1,5 @@
 diff --git a/lib/sqlalchemy/dialects/sqlite/base.py b/lib/sqlalchemy/dialects/sqlite/base.py
-index b0874da..9f81394 100644
+index b0874da..df865ca 100644
 --- a/lib/sqlalchemy/dialects/sqlite/base.py
 +++ b/lib/sqlalchemy/dialects/sqlite/base.py
 @@ -1057,6 +1057,7 @@ from ...sql import coercions
@@ -10,30 +10,61 @@ index b0874da..9f81394 100644
  from ...sql import roles
  from ...sql import schema
  from ...types import BLOB  # noqa
-@@ -1497,6 +1498,41 @@ class SQLiteCompiler(compiler.SQLCompiler):
+@@ -1497,6 +1498,72 @@ class SQLiteCompiler(compiler.SQLCompiler):
          },
      )
  
-+    def _render_json_null_comparison(self, binary, operator, **kw):
++    def _json_null_path_comparison(self, binary, operator):
 +        left = binary.left
 +        right = binary.right
 +
-+        if (
-+            operator not in (operators.eq, operators.ne)
-+            or not isinstance(left, elements.BinaryExpression)
-+            or left.operator
-+            not in (operators.json_getitem_op, operators.json_path_getitem_op)
-+            or not isinstance(right, elements.BindParameter)
-+            or right.value is not sqltypes.JSON.NULL
-+        ):
++        def is_json_path(expr):
++            return (
++                isinstance(expr, elements.BinaryExpression)
++                and expr.operator
++                in (operators.json_getitem_op, operators.json_path_getitem_op)
++            )
++
++        def is_json_null_bind(expr):
++            return (
++                isinstance(expr, elements.BindParameter)
++                and expr.value is sqltypes.JSON.NULL
++            )
++
++        def is_json_null_list_bind(expr):
++            if not isinstance(expr, elements.BindParameter):
++                return False
++            value = expr.value
++            return (
++                isinstance(value, (list, tuple))
++                and len(value) == 1
++                and value[0] is sqltypes.JSON.NULL
++            )
++
++        if operator in (operators.eq, operators.ne):
++            if is_json_path(left) and is_json_null_bind(right):
++                return left, operator
++            elif is_json_path(right) and is_json_null_bind(left):
++                return right, operator
++        elif operator in (operators.in_op, operators.not_in_op):
++            if is_json_path(left) and is_json_null_list_bind(right):
++                return left, operator
++
++        return None
++
++    def _render_json_null_comparison(self, binary, operator, **kw):
++        match = self._json_null_path_comparison(binary, operator)
++        if match is None:
 +            return None
++
++        left, operator = match
 +
 +        json_type = "JSON_TYPE(%s, %s)" % (
 +            self.process(left.left, **kw),
 +            self.process(left.right, **kw),
 +        )
 +
-+        if operator is operators.eq:
++        if operator in (operators.eq, operators.in_op):
 +            return "%s = 'null'" % json_type
 +        else:
 +            return "%s IS NOT 'null'" % json_type
@@ -53,10 +84,10 @@ index b0874da..9f81394 100644
          return (
              self.process(binary.left, **kw)
 diff --git a/test/dialect/sqlite/test_types.py b/test/dialect/sqlite/test_types.py
-index 736541d..d6b618f 100644
+index 736541d..4c55ae2 100644
 --- a/test/dialect/sqlite/test_types.py
 +++ b/test/dialect/sqlite/test_types.py
-@@ -288,6 +288,73 @@ class JSONTest(fixtures.TestBase):
+@@ -288,6 +288,88 @@ class JSONTest(fixtures.TestBase):
              connection.scalar(select(sqlite_json.c.foo["json"])), value["json"]
          )
  
@@ -122,8 +153,23 @@ index 736541d..d6b618f 100644
 +            [1],
 +        )
 +        eq_(matching_ids(sqlite_json.c.foo["missing"] == sqltypes.JSON.NULL), [])
++        eq_(matching_ids(sqltypes.JSON.NULL == sqlite_json.c.foo["json"]), [1])
 +        eq_(
 +            matching_ids(sqlite_json.c.foo["json"] != sqltypes.JSON.NULL),
++            [2, 3, 4],
++        )
++        eq_(
++            matching_ids(sqltypes.JSON.NULL != sqlite_json.c.foo["json"]),
++            [2, 3, 4],
++        )
++        eq_(
++            matching_ids(sqlite_json.c.foo["json"].in_([sqltypes.JSON.NULL])),
++            [1],
++        )
++        eq_(
++            matching_ids(
++                sqlite_json.c.foo["json"].not_in([sqltypes.JSON.NULL])
++            ),
 +            [2, 3, 4],
 +        )
 +
