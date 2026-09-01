@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -u
 
-export PATH="/usr/local/bin:/opt/hudvenv/bin:/usr/bin:/bin:${PATH:-}"
+export PATH="/opt/hudvenv/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 export HOME="${HOME:-/root}"
 
 REPO=${REPO_DIR:-/workspace/repo}
@@ -9,6 +9,9 @@ G=${GRADER_DIR:-/hud/grader}
 LOGDIR=${GRADER_STATE_DIR:-/hud/logs/grading-state}
 mkdir -p "$LOGDIR"
 
+if [ -z "${PYTHON_BIN:-}" ] && [ -x /opt/hudvenv/bin/python3 ]; then
+  PYTHON_BIN=/opt/hudvenv/bin/python3
+fi
 PYTHON_BIN=${PYTHON_BIN:-python3}
 export PYTHONPATH="$REPO/lib${PYTHONPATH:+:$PYTHONPATH}"
 
@@ -47,7 +50,11 @@ criterion_test_quality() {
   run_python_test test_quality.py
 }
 
-CRITERIA="json_null_equality json_null_inequality nested_path_support regression_backcompat test_quality"
+criterion_maintainer_review() {
+  run_python_test maintainer_review.py
+}
+
+CRITERIA="json_null_equality json_null_inequality nested_path_support regression_backcompat test_quality maintainer_review"
 
 name="${1:-}"
 case " $CRITERIA " in

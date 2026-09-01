@@ -15,7 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv /opt/hudvenv \
-    && /opt/hudvenv/bin/pip install --no-cache-dir "hud==0.6.13" "pytest>=8.0.0"
+    && /opt/hudvenv/bin/pip install --no-cache-dir \
+        "hud==0.6.13" \
+        "pytest>=8.0.0" \
+        "typing_extensions>=4.0.0"
 ENV PATH="/opt/hudvenv/bin:${PATH}"
 
 # Substrate repo at the pinned base commit. History is truncated here and
