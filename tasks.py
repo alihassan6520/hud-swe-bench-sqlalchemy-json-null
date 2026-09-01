@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
+import sys
 from pathlib import Path
 
 from hud.graders import BashGrader
@@ -23,7 +25,6 @@ from env import env
 env_mod.REPO_URL = "https://github.com/sqlalchemy/sqlalchemy.git"
 
 PROMPT = (Path(__file__).parent / "task" / "prompt.md").read_text()
-GRADER = "/hud/grader/run_grading.sh"
 GOLD_DIFF = Path(os.environ.get("GOLD_DIFF", "/hud/gold.diff"))
 BASE_REF = "5462cec4c5b97ae9c1cefc0a0e022d49273b32e0"
 BLOCKER_CAP = 0.60
@@ -41,6 +42,7 @@ _JUDGE_FILE = "maintainer_review.judge.json"
 _GRADER_SRC = Path(os.environ.get("GRADER_DIR", "/hud/grader"))
 if not (_GRADER_SRC / _JUDGE_FILE).is_file():
     _GRADER_SRC = Path(__file__).parent / "task" / "grader"
+GRADER = str(_GRADER_SRC / "run_grading.sh")
 JUDGE = json.loads((_GRADER_SRC / _JUDGE_FILE).read_text())
 
 
@@ -99,7 +101,10 @@ async def _grade(validate_mode: str | None) -> EvaluationResult:
                 await BashGrader.grade(
                     weight,
                     name=name,
-                    command=f"bash {GRADER} {name}",
+                    command=(
+                        f"PYTHON_BIN={shlex.quote(sys.executable)} "
+                        f"bash {shlex.quote(GRADER)} {shlex.quote(name)}"
+                    ),
                     cwd=str(REPO_DIR),
                     timeout_seconds=timeout,
                 )

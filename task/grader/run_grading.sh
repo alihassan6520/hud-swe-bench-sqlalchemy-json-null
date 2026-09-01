@@ -4,10 +4,17 @@ set -u
 export PATH="/opt/hudvenv/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 export HOME="${HOME:-/root}"
 
-REPO=${REPO_DIR:-/workspace/repo}
+REPO=${REPO_DIR:-$PWD}
 G=${GRADER_DIR:-/hud/grader}
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if [ ! -d "$G/tests" ]; then
+  G="$SCRIPT_DIR"
+fi
 LOGDIR=${GRADER_STATE_DIR:-/hud/logs/grading-state}
-mkdir -p "$LOGDIR"
+if ! mkdir -p "$LOGDIR" 2>/dev/null; then
+  LOGDIR="${TMPDIR:-/tmp}/hud-grading-state"
+  mkdir -p "$LOGDIR"
+fi
 
 if [ -z "${PYTHON_BIN:-}" ] && [ -x /opt/hudvenv/bin/python3 ]; then
   PYTHON_BIN=/opt/hudvenv/bin/python3
