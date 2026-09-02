@@ -24,6 +24,13 @@ The cached form should also stay correct across direct-key paths, tuple JSON
 paths, reversed operands, distinct predicates, and membership lists of different
 lengths.
 
+Raw Python scalar right-hand-side values used in JSON path predicates must
+still be compared as JSON values. For example, string and numeric values such
+as `"ready"` and `7` should reach SQLite as JSON-serialized bind values
+(`"\"ready\""` and `"7"`), while `JSON.NULL` should bind as `"null"`, including
+when these values appear in cached equality comparisons or cached `IN`
+membership lists.
+
 Keep the change limited to SQLite JSON index/path predicate compilation. Do
 not change JSON persistence semantics, `none_as_null`, regular JSON extraction
 results, scalar casters, or other dialects.
