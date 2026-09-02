@@ -36,6 +36,14 @@ assert (
     or ".notin(" in diff
 ), "expected JSON.NULL membership handling"
 assert (
+    "operators.is_" in diff
+    or ".is_(" in diff
+), "expected JSON.NULL is_() handling"
+assert (
+    "JSON_QUOTE(JSON_EXTRACT" in diff
+    and "JSON_TYPE" in diff
+), "expected mixed membership to preserve JSON scalar matching and path typing"
+assert (
     "operators.eq" in diff
     or "JSON.NULL ==" in diff
 ), "expected symmetric equality handling"

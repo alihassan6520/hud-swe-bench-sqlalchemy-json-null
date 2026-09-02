@@ -51,13 +51,12 @@ with engine.begin() as connection:
         .where(table.c.payload[("events", 0, "kind")] == GenericJSON.NULL)
         .order_by(table.c.id)
     ).all()
-    missing_ids = connection.scalars(
+    absent_ids = connection.scalars(
         select(table.c.id)
-        .where(table.c.payload[("profile", "missing")] == GenericJSON.NULL)
+        .where(table.c.payload[("profile", "absent")] == GenericJSON.NULL)
         .order_by(table.c.id)
     ).all()
 
 assert nested_ids == [1], nested_ids
 assert array_ids == [1], array_ids
-assert missing_ids == [], missing_ids
-
+assert absent_ids == [], absent_ids

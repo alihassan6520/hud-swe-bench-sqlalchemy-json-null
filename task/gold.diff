@@ -1,8 +1,16 @@
 diff --git a/lib/sqlalchemy/dialects/sqlite/base.py b/lib/sqlalchemy/dialects/sqlite/base.py
-index b0874da..df865ca 100644
+index b0874daf1..8b032d67d 100644
 --- a/lib/sqlalchemy/dialects/sqlite/base.py
 +++ b/lib/sqlalchemy/dialects/sqlite/base.py
-@@ -1057,6 +1057,7 @@ from ...sql import coercions
+@@ -1032,6 +1032,7 @@ passed to methods such as :meth:`_schema.MetaData.reflect` or
+ from __future__ import annotations
+
+ import datetime
++import json
+ import numbers
+ import re
+ from typing import Any
+@@ -1057,6 +1058,7 @@ from ...sql import coercions
  from ...sql import compiler
  from ...sql import ddl as sa_ddl
  from ...sql import elements
@@ -10,10 +18,24 @@ index b0874da..df865ca 100644
  from ...sql import roles
  from ...sql import schema
  from ...types import BLOB  # noqa
-@@ -1497,6 +1498,72 @@ class SQLiteCompiler(compiler.SQLCompiler):
+@@ -1497,6 +1499,115 @@ class SQLiteCompiler(compiler.SQLCompiler):
          },
      )
- 
+
++    class _SQLiteJsonQuotedValue(sqltypes.TypeDecorator):
++        impl = sqltypes.String
++        cache_ok = True
++
++        def bind_processor(self, dialect):
++            json_serializer = dialect._json_serializer or json.dumps
++
++            def process(value):
++                if value is sqltypes.JSON.NULL:
++                    value = None
++                return json_serializer(value)
++
++            return process
++
 +    def _json_null_path_comparison(self, binary, operator):
 +        left = binary.left
 +        right = binary.right
@@ -31,43 +53,72 @@ index b0874da..df865ca 100644
 +                and expr.value is sqltypes.JSON.NULL
 +            )
 +
-+        def is_json_null_list_bind(expr):
++        def split_json_null_list_bind(expr):
 +            if not isinstance(expr, elements.BindParameter):
-+                return False
++                return None
 +            value = expr.value
-+            return (
-+                isinstance(value, (list, tuple))
-+                and len(value) == 1
-+                and value[0] is sqltypes.JSON.NULL
-+            )
++            if not isinstance(value, (list, tuple)) or not any(
++                item is sqltypes.JSON.NULL for item in value
++            ):
++                return None
++            return [
++                item for item in value if item is not sqltypes.JSON.NULL
++            ]
 +
-+        if operator in (operators.eq, operators.ne):
++        if operator in (operators.eq, operators.ne, operators.is_, operators.is_not):
 +            if is_json_path(left) and is_json_null_bind(right):
-+                return left, operator
++                return left, operator, None
 +            elif is_json_path(right) and is_json_null_bind(left):
-+                return right, operator
++                return right, operator, None
 +        elif operator in (operators.in_op, operators.not_in_op):
-+            if is_json_path(left) and is_json_null_list_bind(right):
-+                return left, operator
++            other_values = split_json_null_list_bind(right)
++            if is_json_path(left) and other_values is not None:
++                return left, operator, other_values
 +
 +        return None
++
++    def _json_compare_exprs(self, left, **kw):
++        json_value = "JSON_QUOTE(JSON_EXTRACT(%s, %s))" % (
++            self.process(left.left, **kw),
++            self.process(left.right, **kw),
++        )
++        json_type = "JSON_TYPE(%s, %s)" % (
++            self.process(left.left, **kw),
++            self.process(left.right, **kw),
++        )
++        return json_value, json_type
++
++    def _render_json_list_values(self, bindparam, **kw):
++        bindparam = bindparam._clone()
++        bindparam.type = self._SQLiteJsonQuotedValue()
++        return self.process(bindparam, **kw)
 +
 +    def _render_json_null_comparison(self, binary, operator, **kw):
 +        match = self._json_null_path_comparison(binary, operator)
 +        if match is None:
 +            return None
 +
-+        left, operator = match
++        left, operator, other_values = match
++        json_value, json_type = self._json_compare_exprs(left, **kw)
 +
-+        json_type = "JSON_TYPE(%s, %s)" % (
-+            self.process(left.left, **kw),
-+            self.process(left.right, **kw),
-+        )
-+
-+        if operator in (operators.eq, operators.in_op):
++        if operator in (operators.eq, operators.is_):
 +            return "%s = 'null'" % json_type
-+        else:
++        elif operator in (operators.ne, operators.is_not):
 +            return "%s IS NOT 'null'" % json_type
++        elif operator is operators.in_op:
++            return "(%s IS NOT NULL AND %s IN %s)" % (
++                json_type,
++                json_value,
++                self._render_json_list_values(binary.right, **kw),
++            )
++        elif operator is operators.not_in_op:
++            return "(%s IS NULL OR %s NOT IN %s)" % (
++                json_type,
++                json_value,
++                self._render_json_list_values(binary.right, **kw),
++            )
++
++        return None
 +
 +    def visit_binary(self, binary, operator=None, **kw):
 +        rendered = self._render_json_null_comparison(
@@ -84,16 +135,14 @@ index b0874da..df865ca 100644
          return (
              self.process(binary.left, **kw)
 diff --git a/test/dialect/sqlite/test_types.py b/test/dialect/sqlite/test_types.py
-index 736541d..4c55ae2 100644
+index 736541da9..976f2979d 100644
 --- a/test/dialect/sqlite/test_types.py
 +++ b/test/dialect/sqlite/test_types.py
-@@ -288,6 +288,88 @@ class JSONTest(fixtures.TestBase):
+@@ -288,6 +288,78 @@ class JSONTest(fixtures.TestBase):
              connection.scalar(select(sqlite_json.c.foo["json"])), value["json"]
          )
- 
-+    def test_compare_json_null_distinguishes_missing_path(
-+        self, connection, metadata
-+    ):
+
++    def test_compare_json_null_path_predicates(self, connection, metadata):
 +        sqlite_json = Table(
 +            "json_test",
 +            metadata,
@@ -117,6 +166,7 @@ index 736541d..4c55ae2 100644
 +                {
 +                    "id": 2,
 +                    "foo": {
++                        "json": "ready",
 +                        "nested": {},
 +                        "records": [{}],
 +                    },
@@ -130,6 +180,7 @@ index 736541d..4c55ae2 100644
 +                        "records": [{"value": "null"}],
 +                    },
 +                },
++                {"id": 5, "foo": {"json": 7}},
 +            ],
 +        )
 +
@@ -138,40 +189,30 @@ index 736541d..4c55ae2 100644
 +                select(sqlite_json.c.id).where(expr).order_by(sqlite_json.c.id)
 +            ).all()
 +
-+        eq_(matching_ids(sqlite_json.c.foo["json"] == sqltypes.JSON.NULL), [1])
++        json_null = sqltypes.JSON.NULL
++        key_path = sqlite_json.c.foo["json"]
++
++        eq_(matching_ids(key_path == json_null), [1])
++        eq_(matching_ids(json_null == key_path), [1])
++        eq_(matching_ids(key_path.is_(json_null)), [1])
 +        eq_(
-+            matching_ids(
-+                sqlite_json.c.foo[("nested", "value")] == sqltypes.JSON.NULL
-+            ),
++            matching_ids(sqlite_json.c.foo[("nested", "value")] == json_null),
 +            [1],
 +        )
 +        eq_(
-+            matching_ids(
-+                sqlite_json.c.foo[("records", 0, "value")]
-+                == sqltypes.JSON.NULL
-+            ),
++            matching_ids(sqlite_json.c.foo[("records", 0, "value")] == json_null),
 +            [1],
 +        )
-+        eq_(matching_ids(sqlite_json.c.foo["missing"] == sqltypes.JSON.NULL), [])
-+        eq_(matching_ids(sqltypes.JSON.NULL == sqlite_json.c.foo["json"]), [1])
-+        eq_(
-+            matching_ids(sqlite_json.c.foo["json"] != sqltypes.JSON.NULL),
-+            [2, 3, 4],
-+        )
-+        eq_(
-+            matching_ids(sqltypes.JSON.NULL != sqlite_json.c.foo["json"]),
-+            [2, 3, 4],
-+        )
-+        eq_(
-+            matching_ids(sqlite_json.c.foo["json"].in_([sqltypes.JSON.NULL])),
-+            [1],
-+        )
-+        eq_(
-+            matching_ids(
-+                sqlite_json.c.foo["json"].not_in([sqltypes.JSON.NULL])
-+            ),
-+            [2, 3, 4],
-+        )
++        eq_(matching_ids(sqlite_json.c.foo["path_does_not_exist"] == json_null), [])
++
++        eq_(matching_ids(key_path != json_null), [2, 3, 4, 5])
++        eq_(matching_ids(json_null != key_path), [2, 3, 4, 5])
++        eq_(matching_ids(key_path.is_not(json_null)), [2, 3, 4, 5])
++
++        eq_(matching_ids(key_path.in_([json_null])), [1])
++        eq_(matching_ids(key_path.not_in([json_null])), [2, 3, 4, 5])
++        eq_(matching_ids(key_path.in_([json_null, "ready", 7])), [1, 2, 5])
++        eq_(matching_ids(key_path.not_in([json_null, "ready", 7])), [3, 4])
 +
      def test_serializer_args(self, metadata):
          sqlite_json = Table("json_test", metadata, Column("foo", sqlite.JSON))

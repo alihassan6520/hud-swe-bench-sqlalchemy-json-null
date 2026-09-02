@@ -11,7 +11,7 @@ def test_sqlalchemy_json_null_rubric_weights_are_balanced():
         if name in {"test_quality", "maintainer_review"}
     )
 
-    assert total == 1.0
-    assert blocker_total == 0.55
+    assert round(total, 2) == 1.0
+    assert round(blocker_total, 2) == 0.65
     assert blocker_total < tasks.BLOCKER_CAP
-    assert quality_total == 0.40
+    assert round(quality_total, 2) == 0.15

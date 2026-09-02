@@ -8,8 +8,9 @@ as a different value from an absent path, a SQL NULL JSON container, and the
 JSON string `"null"`.
 
 The behavior should be consistent for direct key paths, tuple JSON paths,
-normal and reversed equality predicates, and membership predicates that test a
-path against only `JSON.NULL`. Inverse predicates should exclude explicit JSON
+normal and reversed equality predicates, `is_()` / `is_not()` predicates, and
+membership predicates where `JSON.NULL` appears either by itself or alongside
+ordinary JSON scalar values. Inverse predicates should exclude explicit JSON
 null values while allowing non-null values, absent paths, and SQL NULL
 containers.
 
