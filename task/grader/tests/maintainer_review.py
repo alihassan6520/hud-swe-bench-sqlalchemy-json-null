@@ -40,9 +40,16 @@ assert (
     or ".is_(" in diff
 ), "expected JSON.NULL is_() handling"
 assert (
+    "is_distinct_from" in diff
+), "expected JSON.NULL distinct predicate handling"
+assert (
     "JSON_QUOTE(JSON_EXTRACT" in diff
     and "JSON_TYPE" in diff
 ), "expected mixed membership to preserve JSON scalar matching and path typing"
+assert (
+    "TypeDecorator" in diff
+    or "_clone()" in diff
+), "expected cache-stable bind handling instead of compile-time value branching"
 assert (
     "operators.eq" in diff
     or "JSON.NULL ==" in diff

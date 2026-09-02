@@ -25,20 +25,23 @@ env_mod.REPO_URL = "https://github.com/sqlalchemy/sqlalchemy.git"
 PROMPT = (Path(__file__).parent / "task" / "prompt.md").read_text()
 GOLD_DIFF = Path(os.environ.get("GOLD_DIFF", "/hud/gold.diff"))
 BASE_REF = "5462cec4c5b97ae9c1cefc0a0e022d49273b32e0"
-BLOCKER_CAP = 0.70
+BLOCKER_CAP = 0.95
 
 GRADERS = [
-    ("json_null_equality", 0.05, True, "bash", 300),
-    ("json_null_inequality", 0.05, True, "bash", 300),
-    ("nested_path_support", 0.05, True, "bash", 300),
-    ("membership_support", 0.05, True, "bash", 300),
-    ("reverse_operand_support", 0.05, True, "bash", 300),
-    ("is_operator_support", 0.20, True, "bash", 300),
-    ("mixed_membership_support", 0.20, True, "bash", 300),
-    ("compiled_sql_shape", 0.15, False, "bash", 300),
-    ("regression_backcompat", 0.05, False, "bash", 300),
-    ("test_quality", 0.10, False, "bash", 300),
-    ("maintainer_review", 0.05, False, "bash", 300),
+    ("json_null_equality", 0.03, True, "bash", 300),
+    ("json_null_inequality", 0.03, True, "bash", 300),
+    ("nested_path_support", 0.03, True, "bash", 300),
+    ("membership_support", 0.03, True, "bash", 300),
+    ("reverse_operand_support", 0.03, True, "bash", 300),
+    ("is_operator_support", 0.03, True, "bash", 300),
+    ("mixed_membership_support", 0.02, True, "bash", 300),
+    ("scalar_cache_stability", 0.35, True, "bash", 300),
+    ("membership_cache_stability", 0.30, True, "bash", 300),
+    ("distinct_predicate_support", 0.05, True, "bash", 300),
+    ("compiled_sql_shape", 0.02, False, "bash", 300),
+    ("regression_backcompat", 0.02, False, "bash", 300),
+    ("test_quality", 0.04, False, "bash", 300),
+    ("maintainer_review", 0.02, False, "bash", 300),
 ]
 
 _GRADER_SRC = Path(os.environ.get("GRADER_DIR", "/hud/grader"))

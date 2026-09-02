@@ -25,6 +25,10 @@ assert "!=" in diff, "expected inequality regression coverage"
 assert "==" in diff, "expected equality regression coverage"
 assert ".is_(" in diff, "expected is_() regression coverage"
 assert ".is_not(" in diff, "expected is_not() regression coverage"
+assert (
+    ".is_distinct_from(" in diff
+    and ".is_not_distinct_from(" in diff
+), "expected distinct predicate regression coverage"
 assert ".in_(" in diff or ".in_op(" in diff, "expected membership coverage"
 assert ".not_in(" in diff or ".notin(" in diff, "expected inverse membership coverage"
 compact_diff = diff.replace(" ", "")
@@ -38,3 +42,11 @@ assert (
     "[json_null," in compact_diff
     or "[JSON.NULL," in compact_diff
 ), "expected mixed JSON.NULL membership coverage"
+assert (
+    '=="ready"' in compact_diff
+    or "=='ready'" in compact_diff
+), "expected scalar comparison coverage after JSON.NULL"
+assert (
+    ".in_([\"ready\"" in compact_diff
+    or ".in_(['ready'" in compact_diff
+), "expected ordinary scalar membership coverage near JSON.NULL membership"

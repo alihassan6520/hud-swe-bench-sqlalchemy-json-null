@@ -12,6 +12,6 @@ def test_sqlalchemy_json_null_rubric_weights_are_balanced():
     )
 
     assert round(total, 2) == 1.0
-    assert round(blocker_total, 2) == 0.65
+    assert round(blocker_total, 2) == 0.90
     assert blocker_total < tasks.BLOCKER_CAP
-    assert round(quality_total, 2) == 0.15
+    assert round(quality_total, 2) == 0.06
