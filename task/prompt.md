@@ -20,6 +20,9 @@ the engine query cache. In particular, a cached JSON path comparison compiled
 for `JSON.NULL` must not corrupt later ordinary scalar comparisons on the same
 path, and an ordinary scalar comparison must not corrupt a later `JSON.NULL`
 comparison. The same requirement applies to JSON path membership predicates.
+The cached form should also stay correct across direct-key paths, tuple JSON
+paths, reversed operands, distinct predicates, and membership lists of different
+lengths.
 
 Keep the change limited to SQLite JSON index/path predicate compilation. Do
 not change JSON persistence semantics, `none_as_null`, regular JSON extraction

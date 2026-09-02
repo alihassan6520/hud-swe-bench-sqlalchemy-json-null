@@ -50,3 +50,10 @@ assert (
     ".in_([\"ready\"" in compact_diff
     or ".in_(['ready'" in compact_diff
 ), "expected ordinary scalar membership coverage near JSON.NULL membership"
+assert "query_cache_size" in diff, "expected engine query-cache regression coverage"
+assert (
+    "(\"nested\", \"flag\")" in diff
+    or "('nested', 'flag')" in diff
+    or "[(\"nested\"" in compact_diff
+    or "[('nested'" in compact_diff
+), "expected tuple-path cache regression coverage"

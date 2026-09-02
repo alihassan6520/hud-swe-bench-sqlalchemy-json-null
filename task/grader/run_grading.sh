@@ -77,6 +77,10 @@ criterion_distinct_predicate_support() {
   run_python_test distinct_predicate_support.py
 }
 
+criterion_cross_shape_cache_stability() {
+  run_python_test cross_shape_cache_stability.py
+}
+
 criterion_compiled_sql_shape() {
   run_python_test compiled_sql_shape.py
 }
@@ -93,7 +97,7 @@ criterion_maintainer_review() {
   run_python_test maintainer_review.py
 }
 
-CRITERIA="json_null_equality json_null_inequality nested_path_support membership_support reverse_operand_support is_operator_support mixed_membership_support scalar_cache_stability membership_cache_stability distinct_predicate_support compiled_sql_shape regression_backcompat test_quality maintainer_review"
+CRITERIA="json_null_equality json_null_inequality nested_path_support membership_support reverse_operand_support is_operator_support mixed_membership_support scalar_cache_stability membership_cache_stability distinct_predicate_support cross_shape_cache_stability compiled_sql_shape regression_backcompat test_quality maintainer_review"
 
 name="${1:-}"
 case " $CRITERIA " in

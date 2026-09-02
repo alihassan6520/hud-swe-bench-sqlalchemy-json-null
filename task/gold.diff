@@ -154,7 +154,7 @@ diff --git a/test/dialect/sqlite/test_types.py b/test/dialect/sqlite/test_types.
 index 736541da9..28c7aa15f 100644
 --- a/test/dialect/sqlite/test_types.py
 +++ b/test/dialect/sqlite/test_types.py
-@@ -288,6 +288,85 @@ class JSONTest(fixtures.TestBase):
+@@ -288,6 +288,151 @@ class JSONTest(fixtures.TestBase):
              connection.scalar(select(sqlite_json.c.foo["json"])), value["json"]
          )
 
@@ -236,6 +236,72 @@ index 736541da9..28c7aa15f 100644
 +        eq_(matching_ids(key_path.in_(["ready", 7])), [2, 5])
 +        eq_(matching_ids(key_path.in_([json_null, 7])), [1, 5])
 +        eq_(matching_ids(key_path.not_in([json_null, "ready", 7])), [3, 4])
++
++    def test_compare_json_null_path_predicates_query_cache(self):
++        engine = engines.testing_engine(
++            options={"query_cache_size": 50}
++        )
++        metadata = MetaData()
++        sqlite_json = Table(
++            "json_test",
++            metadata,
++            Column("id", Integer, primary_key=True),
++            Column("foo", sqlite.JSON),
++        )
++
++        metadata.create_all(engine)
++
++        with engine.begin() as connection:
++            connection.execute(
++                sqlite_json.insert(),
++                [
++                    {
++                        "id": 1,
++                        "foo": {
++                            "json": None,
++                            "nested": {"value": None},
++                        },
++                    },
++                    {
++                        "id": 2,
++                        "foo": {
++                            "json": "ready",
++                            "nested": {"value": "ready"},
++                        },
++                    },
++                    {"id": 3, "foo": None},
++                    {
++                        "id": 4,
++                        "foo": {
++                            "json": "null",
++                            "nested": {"value": "null"},
++                        },
++                    },
++                    {"id": 5, "foo": {"json": 7}},
++                ],
++            )
++
++            def matching_ids(expr):
++                return connection.scalars(
++                    select(sqlite_json.c.id)
++                    .where(expr)
++                    .order_by(sqlite_json.c.id)
++                ).all()
++
++            json_null = sqltypes.JSON.NULL
++            key_path = sqlite_json.c.foo["json"]
++            tuple_path = sqlite_json.c.foo[("nested", "value")]
++
++            eq_(matching_ids(key_path == json_null), [1])
++            eq_(matching_ids(key_path == "ready"), [2])
++            eq_(matching_ids(tuple_path == json_null), [1])
++            eq_(matching_ids(json_null == tuple_path), [1])
++            eq_(matching_ids(key_path.is_distinct_from(json_null)), [2, 3, 4, 5])
++            eq_(matching_ids(tuple_path.is_not_distinct_from(json_null)), [1])
++            eq_(matching_ids(key_path.in_([json_null])), [1])
++            eq_(matching_ids(key_path.in_(["ready", 7])), [2, 5])
++            eq_(matching_ids(tuple_path.in_([json_null, "ready"])), [1, 2])
++            eq_(matching_ids(key_path.in_(["null"])), [4])
 +
      def test_serializer_args(self, metadata):
          sqlite_json = Table("json_test", metadata, Column("foo", sqlite.JSON))
