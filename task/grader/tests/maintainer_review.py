@@ -51,6 +51,11 @@ assert (
     or "_clone()" in diff
 ), "expected cache-stable bind handling instead of compile-time value branching"
 assert (
+    "before_cursor_execute" in diff
+    and '\'"ready"\'' in diff
+    and '"7"' in diff
+), "expected raw scalar and membership bind serialization coverage"
+assert (
     "operators.eq" in diff
     or "JSON.NULL ==" in diff
 ), "expected symmetric equality handling"

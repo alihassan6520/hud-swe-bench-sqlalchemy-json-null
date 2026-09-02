@@ -51,6 +51,9 @@ assert (
     or ".in_(['ready'" in compact_diff
 ), "expected ordinary scalar membership coverage near JSON.NULL membership"
 assert "query_cache_size" in diff, "expected engine query-cache regression coverage"
+assert "before_cursor_execute" in diff, "expected raw DBAPI bind inspection coverage"
+assert '\'"ready"\'' in diff, "expected JSON-serialized string bind coverage"
+assert '"7"' in diff, "expected JSON-serialized numeric bind coverage"
 assert (
     "(\"nested\", \"flag\")" in diff
     or "('nested', 'flag')" in diff

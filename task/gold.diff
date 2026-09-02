@@ -1,5 +1,5 @@
 diff --git a/lib/sqlalchemy/dialects/sqlite/base.py b/lib/sqlalchemy/dialects/sqlite/base.py
-index b0874daf1..1fc228ddd 100644
+index b0874da..1fc228d 100644
 --- a/lib/sqlalchemy/dialects/sqlite/base.py
 +++ b/lib/sqlalchemy/dialects/sqlite/base.py
 @@ -1032,6 +1032,7 @@ passed to methods such as :meth:`_schema.MetaData.reflect` or
@@ -151,10 +151,18 @@ index b0874daf1..1fc228ddd 100644
          return (
              self.process(binary.left, **kw)
 diff --git a/test/dialect/sqlite/test_types.py b/test/dialect/sqlite/test_types.py
-index 736541da9..28c7aa15f 100644
+index 736541d..1be3956 100644
 --- a/test/dialect/sqlite/test_types.py
 +++ b/test/dialect/sqlite/test_types.py
-@@ -288,6 +288,151 @@ class JSONTest(fixtures.TestBase):
+@@ -5,6 +5,7 @@ import json
+
+ from sqlalchemy import bindparam
+ from sqlalchemy import Column
++from sqlalchemy import event
+ from sqlalchemy import exc
+ from sqlalchemy import func
+ from sqlalchemy import MetaData
+@@ -288,6 +289,227 @@ class JSONTest(fixtures.TestBase):
              connection.scalar(select(sqlite_json.c.foo["json"])), value["json"]
          )
 
@@ -302,6 +310,82 @@ index 736541da9..28c7aa15f 100644
 +            eq_(matching_ids(key_path.in_(["ready", 7])), [2, 5])
 +            eq_(matching_ids(tuple_path.in_([json_null, "ready"])), [1, 2])
 +            eq_(matching_ids(key_path.in_(["null"])), [4])
++
++    def test_compare_json_null_raw_binds_are_json_serialized(self):
++        engine = engines.testing_engine(
++            options={"query_cache_size": 50}
++        )
++        metadata = MetaData()
++        sqlite_json = Table(
++            "json_test",
++            metadata,
++            Column("id", Integer, primary_key=True),
++            Column("foo", sqlite.JSON),
++        )
++        seen_value_params = []
++
++        @event.listens_for(engine, "before_cursor_execute")
++        def collect_json_predicate_params(
++            conn, cursor, statement, parameters, context, executemany
++        ):
++            if "WHERE" not in statement or "JSON_EXTRACT" not in statement:
++                return
++            if isinstance(parameters, dict):
++                values = list(parameters.values())
++            else:
++                values = list(parameters)
++            seen_value_params.append(
++                [
++                    value
++                    for value in values
++                    if not (isinstance(value, str) and value.startswith("$."))
++                ]
++            )
++
++        metadata.create_all(engine)
++
++        with engine.begin() as connection:
++            connection.execute(
++                sqlite_json.insert(),
++                [
++                    {"id": 1, "foo": {"json": None}},
++                    {"id": 2, "foo": {"json": "ready"}},
++                    {"id": 3, "foo": {"json": 7}},
++                    {"id": 4, "foo": {"json": "other"}},
++                    {"id": 5, "foo": {}},
++                    {"id": 6, "foo": None},
++                ],
++            )
++
++            def matching_ids(expr):
++                return connection.scalars(
++                    select(sqlite_json.c.id)
++                    .where(expr)
++                    .order_by(sqlite_json.c.id)
++                ).all()
++
++            json_null = sqltypes.JSON.NULL
++            key_path = sqlite_json.c.foo["json"]
++
++            eq_(matching_ids(key_path == json_null), [1])
++            eq_(matching_ids(key_path == "ready"), [2])
++            eq_(matching_ids(key_path == 7), [3])
++            eq_(matching_ids(key_path.in_([json_null, "ready", 7])), [1, 2, 3])
++            eq_(matching_ids(key_path.in_(["ready", "other"])), [2, 4])
++            eq_(matching_ids(key_path.in_([json_null, "other"])), [1, 4])
++
++        eq_(seen_value_params[0], ["null", "null", "null"])
++        eq_(seen_value_params[1], ['"ready"', '"ready"', '"ready"'])
++        eq_(seen_value_params[2], ["7", "7", "7"])
++        eq_(seen_value_params[3], ["null", '"ready"', "7"])
++        eq_(seen_value_params[4], ['"ready"', '"other"'])
++        eq_(seen_value_params[5], ["null", '"other"'])
++
++        flat_values = [value for values in seen_value_params for value in values]
++        assert sqltypes.JSON.NULL not in flat_values
++        assert "ready" not in flat_values
++        assert "other" not in flat_values
++        assert 7 not in flat_values
 +
      def test_serializer_args(self, metadata):
          sqlite_json = Table("json_test", metadata, Column("foo", sqlite.JSON))
